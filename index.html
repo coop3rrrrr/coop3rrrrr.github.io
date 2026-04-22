@@ -20,21 +20,16 @@
   <script>
     const video = document.getElementById("video");
 
-    // ✅ Start camera (mobile-friendly)
+    // 📸 Camera (mobile-safe)
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
     })
     .then(stream => {
       video.srcObject = stream;
     })
-    .catch(err => {
-      console.log("Camera error:", err);
-
-      // fallback to any camera
+    .catch(() => {
       navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;
-        });
+        .then(stream => video.srcObject = stream);
     });
 
     function capture() {
@@ -44,14 +39,36 @@
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      ctx.drawImage(video, 0, 0);
+      // 🎯 crop center (reduces noise a LOT)
+      const w = canvas.width * 0.7;
+      const h = canvas.height * 0.4;
+      const x = (canvas.width - w) / 2;
+      const y = (canvas.height - h) / 2;
+
+      // 🔥 boost contrast before OCR
+      ctx.filter = "contrast(200%) brightness(120%)";
+      ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
+      ctx.filter = "none";
 
       const image = canvas.toDataURL("image/png");
 
-      Tesseract.recognize(image, "eng")
-        .then(({ data: { text } }) => {
-          document.getElementById("output").innerText = text;
-        });
+      Tesseract.recognize(image, "eng", {
+        logger: m => console.log(m)
+      }).then(({ data }) => {
+
+        const text = data.text.trim();
+        const confidence = data.confidence;
+
+        // 🧠 filter out fake detections
+        if (confidence < 60 || text.length < 5) {
+          document.getElementById("output").innerText =
+            "No clear text found ❌";
+          return;
+        }
+
+        document.getElementById("output").innerText =
+          "Detected:\n" + text;
+      });
     }
   </script>
 
@@ -59,22 +76,29 @@
     body {
       font-family: Arial;
       text-align: center;
-    }
-
-    button {
-      font-size: 20px;
-      padding: 15px 25px;
-      margin-top: 20px;
-      border-radius: 10px;
-      border: none;
-      background-color: #4CAF50;
-      color: white;
+      background: #f5f5f5;
     }
 
     video {
       width: 100%;
       max-width: 400px;
-      border-radius: 10px;
+      border-radius: 12px;
+    }
+
+    button {
+      font-size: 22px;
+      padding: 15px 30px;
+      margin-top: 20px;
+      border-radius: 12px;
+      border: none;
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    p {
+      margin-top: 20px;
+      font-size: 18px;
+      white-space: pre-wrap;
     }
   </style>
 

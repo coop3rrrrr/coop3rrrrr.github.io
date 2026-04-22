@@ -15,30 +15,22 @@
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
-  <script>
-    const video = document.getElementById("video");
-
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        video.srcObject = stream;
-      });
-
-    function capture() {
-      const canvas = document.getElementById("canvas");
-      const ctx = canvas.getContext("2d");
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      ctx.drawImage(video, 0, 0);
-
-      const image = canvas.toDataURL("image/png");
-
-      Tesseract.recognize(image, "eng").then(({ data: { text } }) => {
-        document.getElementById("output").innerText = text;
-      });
-    }
-  </script>
+ navigator.mediaDevices.getUserMedia({
+  video: {
+    facingMode: { exact: "environment" }
+  }
+})
+.then(stream => {
+  video.srcObject = stream;
+})
+.catch(() => {
+  // fallback if exact fails
+  navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment" }
+  }).then(stream => {
+    video.srcObject = stream;
+  });
+});
 
   <style>
   body {

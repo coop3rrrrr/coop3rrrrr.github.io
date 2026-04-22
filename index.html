@@ -60,7 +60,7 @@
         const confidence = data.confidence;
 
         // 🧠 filter out fake detections
-        if (confidence < 60 || text.length < 5) {
+        if (confidence < 31 || text.length < 2) {
           document.getElementById("output").innerText =
             "No clear text found ❌";
           return;

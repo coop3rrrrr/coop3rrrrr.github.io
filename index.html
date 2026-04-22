@@ -32,39 +32,72 @@
         .then(stream => video.srcObject = stream);
     });
 
-    function capture() {
-      const canvas = document.getElementById("canvas");
-      const ctx = canvas.getContext("2d");
+   function capture() {
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
 
-      // 🎯 crop center (reduces noise a LOT)
-      const w = canvas.width * 0.7;
-      const h = canvas.height * 0.4;
-      const x = (canvas.width - w) / 2;
-      const y = (canvas.height - h) / 2;
+  // 🎯 crop center (less noise)
+  const w = canvas.width * 0.7;
+  const h = canvas.height * 0.4;
+  const x = (canvas.width - w) / 2;
+  const y = (canvas.height - h) / 2;
 
-      // 🔥 boost contrast before OCR
-      ctx.filter = "contrast(200%) brightness(120%)";
-      ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
-      ctx.filter = "none";
+  ctx.filter = "contrast(200%) brightness(120%)";
+  ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
+  ctx.filter = "none";
 
-      const image = canvas.toDataURL("image/png");
+  const image = canvas.toDataURL("image/png");
 
-      Tesseract.recognize(image, "eng", {
-        logger: m => console.log(m)
-      }).then(({ data }) => {
+  Tesseract.recognize(image, "eng").then(({ data }) => {
+    const text = data.text.trim();
 
-        const text = data.text.trim();
-        const confidence = data.confidence;
+    const cleaned = text
+      .replace(/\n/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
-        // 🧠 filter out fake detections
-        if (confidence < 31 || text.length < 2) {
-          document.getElementById("output").innerText =
-            "No clear text found ❌";
-          return;
-        }
+    const confidence = data.confidence;
+
+    // 🧠 "AI sanity score system"
+    let score = 0;
+
+    // real words boost score
+    const wordCount = cleaned.split(" ").length;
+    if (wordCount >= 2) score += 20;
+
+    // contains letters (not just random noise)
+    if (/[a-zA-Z]{2,}/.test(cleaned)) score += 20;
+
+    // contains numbers (labels often have them)
+    if (/\d/.test(cleaned)) score += 10;
+
+    // looks like structured text (caps / packaging style)
+    if (/[A-Z]{2,}/.test(cleaned)) score += 10;
+
+    // OCR confidence
+    if (confidence > 40) score += 20;
+
+    // bonus if it looks like label-ish text
+    if (/(exp|best|use|milk|date|store|keep)/i.test(cleaned)) {
+      score += 20;
+    }
+
+    let output = "";
+
+    if (score > 50) {
+      output = "🧠 Likely real text:\n" + cleaned;
+    } else {
+      output = "❌ Junk / unclear text\n" + cleaned;
+    }
+
+    output += `\n\nScore: ${score}/100`;
+
+    document.getElementById("output").innerText = output;
+  });
+}
 
         document.getElementById("output").innerText =
           "Detected:\n" + text;

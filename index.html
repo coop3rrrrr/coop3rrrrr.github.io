@@ -4,10 +4,12 @@
   <title>Milk Scanner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
+
 <body>
   <h1>Milk Expiration Scanner</h1>
 
-  <video id="video" autoplay></video>
+  <video id="video" autoplay playsinline></video>
+  <br>
   <button onclick="capture()">Scan</button>
 
   <canvas id="canvas" style="display:none;"></canvas>
@@ -15,44 +17,66 @@
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
- navigator.mediaDevices.getUserMedia({
-  video: {
-    facingMode: { exact: "environment" }
-  }
-})
-.then(stream => {
-  video.srcObject = stream;
-})
-.catch(() => {
-  // fallback if exact fails
-  navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
-  }).then(stream => {
-    video.srcObject = stream;
-  });
-});
+  <script>
+    const video = document.getElementById("video");
+
+    // ✅ Start camera (mobile-friendly)
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" }
+    })
+    .then(stream => {
+      video.srcObject = stream;
+    })
+    .catch(err => {
+      console.log("Camera error:", err);
+
+      // fallback to any camera
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+          video.srcObject = stream;
+        });
+    });
+
+    function capture() {
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      ctx.drawImage(video, 0, 0);
+
+      const image = canvas.toDataURL("image/png");
+
+      Tesseract.recognize(image, "eng")
+        .then(({ data: { text } }) => {
+          document.getElementById("output").innerText = text;
+        });
+    }
+  </script>
 
   <style>
-  body {
-    font-family: Arial;
-    text-align: center;
-  }
+    body {
+      font-family: Arial;
+      text-align: center;
+    }
 
-  button {
-    font-size: 20px;
-    padding: 15px 25px;
-    margin-top: 20px;
-    border-radius: 10px;
-    border: none;
-    background-color: #4CAF50;
-    color: white;
-  }
+    button {
+      font-size: 20px;
+      padding: 15px 25px;
+      margin-top: 20px;
+      border-radius: 10px;
+      border: none;
+      background-color: #4CAF50;
+      color: white;
+    }
 
-  video {
-    width: 100%;
-    max-width: 400px;
-    border-radius: 10px;
-  }
-</style>
+    video {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 10px;
+    }
+  </style>
+
 </body>
 </html>

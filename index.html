@@ -20,7 +20,7 @@
   <script>
     const video = document.getElementById("video");
 
-    // 📸 CAMERA START
+    // 📸 camera
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
     })
@@ -29,14 +29,9 @@
     })
     .catch(() => {
       navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => video.srcObject = stream)
-        .catch(err => {
-          document.getElementById("output").innerText =
-            "Camera blocked ❌: " + err;
-        });
+        .then(stream => video.srcObject = stream);
     });
 
-    // 📸 SCAN FUNCTION
     function capture() {
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
@@ -44,12 +39,14 @@
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const w = canvas.width * 0.7;
-      const h = canvas.height * 0.4;
+      // 🎯 crop center (less noise)
+      const w = canvas.width * 0.6;
+      const h = canvas.height * 0.3;
       const x = (canvas.width - w) / 2;
       const y = (canvas.height - h) / 2;
 
-      ctx.filter = "contrast(200%) brightness(120%)";
+      // 🔥 enhance image
+      ctx.filter = "contrast(250%) brightness(130%) grayscale(1)";
       ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
 

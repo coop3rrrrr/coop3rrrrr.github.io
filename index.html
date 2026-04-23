@@ -20,7 +20,7 @@
   <script>
     const video = document.getElementById("video");
 
-    // 📸 Camera (mobile-safe)
+    // 📸 CAMERA START
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
     })
@@ -29,78 +29,61 @@
     })
     .catch(() => {
       navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => video.srcObject = stream);
+        .then(stream => video.srcObject = stream)
+        .catch(err => {
+          document.getElementById("output").innerText =
+            "Camera blocked ❌: " + err;
+        });
     });
 
-   function capture() {
-  const canvas = document.getElementById("canvas");
-  const ctx = canvas.getContext("2d");
+    // 📸 SCAN FUNCTION
+    function capture() {
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-  // 🎯 crop center (less noise)
-  const w = canvas.width * 0.7;
-  const h = canvas.height * 0.4;
-  const x = (canvas.width - w) / 2;
-  const y = (canvas.height - h) / 2;
+      const w = canvas.width * 0.7;
+      const h = canvas.height * 0.4;
+      const x = (canvas.width - w) / 2;
+      const y = (canvas.height - h) / 2;
 
-  ctx.filter = "contrast(200%) brightness(120%)";
-  ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
-  ctx.filter = "none";
+      ctx.filter = "contrast(200%) brightness(120%)";
+      ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
+      ctx.filter = "none";
 
-  const image = canvas.toDataURL("image/png");
+      const image = canvas.toDataURL("image/png");
 
-  Tesseract.recognize(image, "eng").then(({ data }) => {
-    const text = data.text.trim();
+      Tesseract.recognize(image, "eng").then(({ data }) => {
 
-    const cleaned = text
-      .replace(/\n/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+        const cleaned = data.text
+          .replace(/\n/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
 
-    const confidence = data.confidence;
+        const confidence = data.confidence;
 
-    // 🧠 "AI sanity score system"
-    let score = 0;
+        let score = 0;
 
-    // real words boost score
-    const wordCount = cleaned.split(" ").length;
-    if (wordCount >= 2) score += 20;
+        if (cleaned.split(" ").length >= 2) score += 20;
+        if (/[a-zA-Z]{2,}/.test(cleaned)) score += 20;
+        if (/\d/.test(cleaned)) score += 10;
+        if (/[A-Z]{2,}/.test(cleaned)) score += 10;
+        if (confidence > 40) score += 20;
+        if (/(exp|best|use|milk|date|store|keep)/i.test(cleaned)) score += 20;
 
-    // contains letters (not just random noise)
-    if (/[a-zA-Z]{2,}/.test(cleaned)) score += 20;
+        let output = "";
 
-    // contains numbers (labels often have them)
-    if (/\d/.test(cleaned)) score += 10;
+        if (score > 50) {
+          output = "🧠 Likely real text:\n" + cleaned;
+        } else {
+          output = "❌ Junk / unclear text\n" + cleaned;
+        }
 
-    // looks like structured text (caps / packaging style)
-    if (/[A-Z]{2,}/.test(cleaned)) score += 10;
+        output += `\n\nScore: ${score}/100`;
 
-    // OCR confidence
-    if (confidence > 40) score += 20;
-
-    // bonus if it looks like label-ish text
-    if (/(exp|best|use|milk|date|store|keep)/i.test(cleaned)) {
-      score += 20;
-    }
-
-    let output = "";
-
-    if (score > 50) {
-      output = "🧠 Likely real text:\n" + cleaned;
-    } else {
-      output = "❌ Junk / unclear text\n" + cleaned;
-    }
-
-    output += `\n\nScore: ${score}/100`;
-
-    document.getElementById("output").innerText = output;
-  });
-}
-
-        document.getElementById("output").innerText =
-          "Detected:\n" + text;
+        document.getElementById("output").innerText = output;
       });
     }
   </script>

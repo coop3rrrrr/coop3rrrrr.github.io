@@ -40,9 +40,12 @@
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      ctx.filter = "contrast(250%) brightness(130%) grayscale(1)";
+      ctx.filter = "grayscale(1) contrast(180%) brightness(110%)";
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(canvas, 0, 0);
+      ctx.globalAlpha = 1;
 
       const image = canvas.toDataURL("image/png");
 

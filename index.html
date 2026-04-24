@@ -30,6 +30,10 @@
     });
 
     function capture() {
+      if (video.videoWidth === 0) {
+      alert("Camera not ready yet. Wait a sec and try again.");
+      return;
+      }
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
@@ -37,7 +41,7 @@
       canvas.height = video.videoHeight;
 
       ctx.filter = "contrast(250%) brightness(130%) grayscale(1)";
-      ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
 
       const image = canvas.toDataURL("image/png");

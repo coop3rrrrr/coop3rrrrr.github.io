@@ -140,11 +140,11 @@
       ctx.filter = "none";
 
       const image = canvas.toDataURL("image/png");
-
+//scan for text
       Tesseract.recognize(image, "eng", {
         tessedit_pageseg_mode: 6
       }).then(({ data }) => {
-
+        
         const confidence = data.confidence;
 
         let text = data.text
@@ -170,7 +170,7 @@
         } else if (score > 45) {
           output = "UNCERTAIN SCAN\n\n";
         } else {
-          output = "UNCLEAR SCAN\n\n";
+          output = "NO TEXT FOUND. TRY TO KEEP YOUR PHONE STABLE\n\n";
         }
 
         output += text;
@@ -194,7 +194,7 @@
       });
     }
   </script>
-
+<!--why is there so much css-->
   <style>
     body {
       font-family: Arial;
@@ -217,7 +217,6 @@
       background-color: #4CAF50;
       color: white;
     }
-
     p {
       margin-top: 20px;
       font-size: 18px;
@@ -237,6 +236,6 @@
       transition: all 0.2s ease;
     }
   </style>
-
+  <!--finally im free-->
 </body>
 </html>

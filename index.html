@@ -22,7 +22,11 @@
   <script>
     const video = document.getElementById("video");
     const frame = document.querySelector(".scanner-frame");
+
     let scanning = false;
+    let aimScore = 0;
+    let stableTime = 0;
+    let autoCaptured = false;
 
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
@@ -34,9 +38,7 @@
     });
 
     async function aimAssist() {
-      if (scanning) return;
-
-      if (video.videoWidth === 0) {
+      if (scanning || video.videoWidth === 0) {
         requestAnimationFrame(aimAssist);
         return;
       }
@@ -58,36 +60,56 @@
 
       ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
 
-      const preview = canvas.toDataURL("image/png");
+      const image = canvas.toDataURL("image/png");
 
-      const result = await Tesseract.recognize(preview, "eng", {
+      const result = await Tesseract.recognize(image, "eng", {
         tessedit_pageseg_mode: 6
       });
 
+      const text = result.data.text;
       const confidence = result.data.confidence;
-      const textLength = result.data.text.trim().length;
 
-      if (confidence > 55 && textLength > 5) {
+      const dateMatch =
+        text.match(/\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?/) ||
+        text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*\d{1,2}/i);
+
+      let score = 0;
+      if (confidence > 40) score += 30;
+      if (dateMatch) score += 50;
+      if (/\d/.test(text)) score += 10;
+      if (text.trim().length > 5) score += 10;
+
+      if (score > 75) aimScore = Math.min(100, aimScore + 20);
+      else if (score > 55) aimScore = Math.min(100, aimScore + 8);
+      else aimScore = Math.max(0, aimScore - 15);
+
+      if (aimScore > 80) stableTime++;
+      else stableTime = 0;
+
+      if (aimScore > 80) {
         frame.style.borderColor = "#00ff66";
-        frame.style.boxShadow = "0 0 20px rgba(0,255,100,0.6)";
-      } else if (confidence > 30) {
+        frame.style.boxShadow = "0 0 30px rgba(0,255,100,0.9)";
+
+        if (stableTime > 3 && !autoCaptured && dateMatch) {
+          autoCaptured = true;
+          capture();
+        }
+
+      } else if (aimScore > 50) {
         frame.style.borderColor = "#ffcc00";
-        frame.style.boxShadow = "0 0 20px rgba(255,200,0,0.4)";
+        frame.style.boxShadow = "0 0 20px rgba(255,200,0,0.5)";
       } else {
         frame.style.borderColor = "#ff3b3b";
-        frame.style.boxShadow = "0 0 20px rgba(255,0,0,0.4)";
+        frame.style.boxShadow = "0 0 15px rgba(255,0,0,0.4)";
       }
 
-      requestAnimationFrame(aimAssist);
+      setTimeout(() => requestAnimationFrame(aimAssist), 300);
     }
 
     aimAssist();
 
     function capture() {
-      if (video.videoWidth === 0) {
-        alert("Camera not ready yet. Wait a sec and try again.");
-        return;
-      }
+      if (video.videoWidth === 0) return;
 
       scanning = true;
 
@@ -108,11 +130,7 @@
 
       ctx.filter = "grayscale(1) contrast(180%) brightness(110%)";
 
-      ctx.drawImage(
-        video,
-        x, y, cropW, cropH,
-        0, 0, canvas.width, canvas.height
-      );
+      ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
 
       ctx.filter = "none";
 
@@ -130,57 +148,30 @@
           .trim()
           .toLowerCase();
 
-        const words = text.split(" ").filter(w => w.length > 1);
-
-        const rebuilt = [];
-
-        for (let i = 0; i < words.length; i++) {
-          let word = words[i];
-
-          if (i < words.length - 1) {
-            const combo = word + words[i + 1];
-            if (/(exp|best|use|milk|date)/.test(combo)) {
-              rebuilt.push(combo);
-              i++;
-              continue;
-            }
-          }
-
-          rebuilt.push(word);
-        }
-
-        text = rebuilt.join(" ");
+        const dateMatch =
+          text.match(/\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?/) ||
+          text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*\d{1,2}/i);
 
         let score = 0;
-
-        if (confidence > 30) score += 20;
-        if (confidence > 50) score += 20;
-        if (/\d/.test(text)) score += 15;
-        if (/(exp|best|use|milk|date|sell|store)/.test(text)) score += 25;
+        if (confidence > 40) score += 30;
+        if (dateMatch) score += 50;
+        if (/\d/.test(text)) score += 10;
         if (text.length > 5) score += 10;
-
-        const dateMatch = text.match(/\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?/);
-
-        if (dateMatch) score += 20;
 
         let output = "";
 
-        if (score > 60) {
-          output = "Likely valid text\n\n";
-        } else if (score > 40) {
-          output = "Unclear but usable\n\n";
+        if (dateMatch && score > 60) {
+          output = "EXPIRATION DATE DETECTED\n\n";
+          output += "Date: " + dateMatch[0];
+        } else if (dateMatch) {
+          output = "POSSIBLE DATE FOUND\n\n";
+          output += "Date: " + dateMatch[0];
         } else {
-          output = "Unclear scan\n\n";
-        }
-
-        output += text;
-
-        if (dateMatch) {
-          output += "\n\nDate: " + dateMatch[0];
+          output = "NO CLEAR DATE FOUND\n\n" + text;
         }
 
         if (confidence < 40) {
-          output += "\n\nLow confidence";
+          output += "\n\nLow confidence scan";
         }
 
         output += `\n\nScore: ${score}/100`;
@@ -188,6 +179,9 @@
         document.getElementById("output").innerText = output;
 
         scanning = false;
+        autoCaptured = false;
+        stableTime = 0;
+        aimScore = 0;
       });
     }
   </script>

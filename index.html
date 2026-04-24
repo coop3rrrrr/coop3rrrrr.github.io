@@ -9,6 +9,8 @@
   <h1>AI Milk Expiration Scanner</h1>
 
   <video id="video" autoplay playsinline></video>
+  <div class="scanner-frame"></div>
+
   <br>
   <button onclick="capture()">Scan</button>
 
@@ -19,6 +21,8 @@
 
   <script>
     const video = document.getElementById("video");
+    const frame = document.querySelector(".scanner-frame");
+    let scanning = false;
 
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
@@ -29,27 +33,95 @@
         .then(stream => video.srcObject = stream);
     });
 
+    async function aimAssist() {
+      if (scanning) return;
+
+      if (video.videoWidth === 0) {
+        requestAnimationFrame(aimAssist);
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+
+      const cropW = vw * 0.7;
+      const cropH = vh * 0.3;
+
+      const x = (vw - cropW) / 2;
+      const y = (vh - cropH) / 2;
+
+      canvas.width = cropW;
+      canvas.height = cropH;
+
+      ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
+
+      const preview = canvas.toDataURL("image/png");
+
+      const result = await Tesseract.recognize(preview, "eng", {
+        tessedit_pageseg_mode: 6
+      });
+
+      const confidence = result.data.confidence;
+      const textLength = result.data.text.trim().length;
+
+      if (confidence > 55 && textLength > 5) {
+        frame.style.borderColor = "#00ff66";
+        frame.style.boxShadow = "0 0 20px rgba(0,255,100,0.6)";
+      } else if (confidence > 30) {
+        frame.style.borderColor = "#ffcc00";
+        frame.style.boxShadow = "0 0 20px rgba(255,200,0,0.4)";
+      } else {
+        frame.style.borderColor = "#ff3b3b";
+        frame.style.boxShadow = "0 0 20px rgba(255,0,0,0.4)";
+      }
+
+      requestAnimationFrame(aimAssist);
+    }
+
+    aimAssist();
+
     function capture() {
       if (video.videoWidth === 0) {
-      alert("Camera not ready yet. Wait a sec and try again.");
-      return;
+        alert("Camera not ready yet. Wait a sec and try again.");
+        return;
       }
+
+      scanning = true;
+
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+
+      const cropW = vw * 0.7;
+      const cropH = vh * 0.3;
+
+      const x = (vw - cropW) / 2;
+      const y = (vh - cropH) / 2;
+
+      canvas.width = cropW;
+      canvas.height = cropH;
 
       ctx.filter = "grayscale(1) contrast(180%) brightness(110%)";
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(
+        video,
+        x, y, cropW, cropH,
+        0, 0, canvas.width, canvas.height
+      );
+
       ctx.filter = "none";
-      ctx.globalAlpha = 0.5;
-      ctx.drawImage(canvas, 0, 0);
-      ctx.globalAlpha = 1;
 
       const image = canvas.toDataURL("image/png");
 
-      Tesseract.recognize(image, "eng").then(({ data }) => {
+      Tesseract.recognize(image, "eng", {
+        tessedit_pageseg_mode: 6
+      }).then(({ data }) => {
+
         const confidence = data.confidence;
 
         let text = data.text
@@ -114,6 +186,8 @@
         output += `\n\nScore: ${score}/100`;
 
         document.getElementById("output").innerText = output;
+
+        scanning = false;
       });
     }
   </script>
@@ -145,6 +219,19 @@
       margin-top: 20px;
       font-size: 18px;
       white-space: pre-wrap;
+    }
+
+    .scanner-frame {
+      position: absolute;
+      top: 35%;
+      left: 15%;
+      width: 70%;
+      height: 30%;
+      border: 3px dashed rgba(255, 0, 0, 0.9);
+      border-radius: 12px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+      pointer-events: none;
+      transition: all 0.2s ease;
     }
   </style>
 

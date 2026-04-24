@@ -27,6 +27,7 @@
     let aimScore = 0;
     let stableTime = 0;
     let autoCaptured = false;
+    let ocrBusy = false;
 
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
@@ -38,10 +39,12 @@
     });
 
     async function aimAssist() {
-      if (scanning || video.videoWidth === 0) {
+      if (scanning || ocrBusy || video.videoWidth === 0) {
         requestAnimationFrame(aimAssist);
         return;
       }
+
+      ocrBusy = true;
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -69,15 +72,15 @@
       const text = result.data.text;
       const confidence = result.data.confidence;
 
-      const dateMatch =
-        text.match(/\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?/) ||
-        text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*\d{1,2}/i);
+      const hasNumbers = /\d/.test(text);
+      const hasUsefulWords = /(exp|best|use|milk|date|sell)/i.test(text);
+      const textAmount = text.trim().length;
 
-      let score = 0;
-      if (confidence > 40) score += 30;
-      if (dateMatch) score += 50;
-      if (/\d/.test(text)) score += 10;
-      if (text.trim().length > 5) score += 10;
+      let score =
+        confidence +
+        (hasNumbers ? 20 : 0) +
+        (hasUsefulWords ? 20 : 0) +
+        (textAmount > 10 ? 10 : 0);
 
       if (score > 75) aimScore = Math.min(100, aimScore + 20);
       else if (score > 55) aimScore = Math.min(100, aimScore + 8);
@@ -90,7 +93,7 @@
         frame.style.borderColor = "#00ff66";
         frame.style.boxShadow = "0 0 30px rgba(0,255,100,0.9)";
 
-        if (stableTime > 3 && !autoCaptured && dateMatch) {
+        if (stableTime > 3 && !autoCaptured) {
           autoCaptured = true;
           capture();
         }
@@ -102,6 +105,8 @@
         frame.style.borderColor = "#ff3b3b";
         frame.style.boxShadow = "0 0 15px rgba(255,0,0,0.4)";
       }
+
+      ocrBusy = false;
 
       setTimeout(() => requestAnimationFrame(aimAssist), 300);
     }
@@ -148,27 +153,27 @@
           .trim()
           .toLowerCase();
 
-        const dateMatch =
-          text.match(/\d{1,2}[\/\-]\d{1,2}([\/\-]\d{2,4})?/) ||
-          text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s*\d{1,2}/i);
+        const hasNumbers = /\d/.test(text);
+        const hasUsefulWords = /(exp|best|use|milk|date|sell|store)/i.test(text);
+        const textAmount = text.trim().length;
 
-        let score = 0;
-        if (confidence > 40) score += 30;
-        if (dateMatch) score += 50;
-        if (/\d/.test(text)) score += 10;
-        if (text.length > 5) score += 10;
+        let score =
+          confidence +
+          (hasNumbers ? 20 : 0) +
+          (hasUsefulWords ? 20 : 0) +
+          (textAmount > 10 ? 10 : 0);
 
         let output = "";
 
-        if (dateMatch && score > 60) {
-          output = "EXPIRATION DATE DETECTED\n\n";
-          output += "Date: " + dateMatch[0];
-        } else if (dateMatch) {
-          output = "POSSIBLE DATE FOUND\n\n";
-          output += "Date: " + dateMatch[0];
+        if (score > 70) {
+          output = "LIKELY VALID SCAN\n\n";
+        } else if (score > 45) {
+          output = "UNCERTAIN SCAN\n\n";
         } else {
-          output = "NO CLEAR DATE FOUND\n\n" + text;
+          output = "UNCLEAR SCAN\n\n";
         }
+
+        output += text;
 
         if (confidence < 40) {
           output += "\n\nLow confidence scan";
@@ -179,7 +184,11 @@
         document.getElementById("output").innerText = output;
 
         scanning = false;
-        autoCaptured = false;
+
+        setTimeout(() => {
+          autoCaptured = false;
+        }, 800);
+
         stableTime = 0;
         aimScore = 0;
       });

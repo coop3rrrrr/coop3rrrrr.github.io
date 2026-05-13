@@ -8,8 +8,11 @@
 <body>
   <h1>AI Milk Expiration Scanner</h1>
 
-  <video id="video" autoplay playsinline></video>
-  <div class="scanner-frame"></div>
+  <div class="video-container">
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlay" class="overlay-canvas"></canvas>
+    <div class="scanner-frame"></div>
+  </div>
 
   <br>
   <button onclick="capture()">Scan</button>
@@ -17,17 +20,18 @@
   <canvas id="canvas" style="display:none;"></canvas>
   <p id="output"></p>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <script>
     const video = document.getElementById("video");
     const frame = document.querySelector(".scanner-frame");
+    const overlay = document.getElementById("overlay");
 
     let scanning = false;
     let aimScore = 0;
     let stableTime = 0;
     let autoCaptured = false;
-    let ocrBusy = false;
+    let scanBusy = false;
 
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
@@ -38,53 +42,101 @@
         .then(stream => video.srcObject = stream);
     });
 
+    function extractExpiryDate(text) {
+      if (!text) return null;
+      const normalized = text.replace(/[\.\,\s]+/g, " ").toUpperCase();
+      const patterns = [
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*([0-9]{4}[\/-][0-9]{2}[\/-][0-9]{2})/i,
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*([0-9]{2}[\/-][0-9]{2}[\/-][0-9]{4})/i,
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*(\d{8})/i,
+        /([0-9]{4}[\/-][0-9]{2}[\/-][0-9]{2})/,
+        /([0-9]{2}[\/-][0-9]{2}[\/-][0-9]{4})/,
+        /(\d{8})/
+      ];
+
+      for (const pattern of patterns) {
+        const match = normalized.match(pattern);
+        if (match && match[1]) {
+          let dateText = match[1].replace(/\s+/g, "");
+          if (/^\d{8}$/.test(dateText)) {
+            const yearFirst = parseInt(dateText.slice(0, 4), 10);
+            if (yearFirst > 1900) {
+              dateText = `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6)}`;
+            } else {
+              dateText = `${dateText.slice(4, 8)}-${dateText.slice(2, 4)}-${dateText.slice(0, 2)}`;
+            }
+          }
+          const parsed = new Date(dateText.replace(/\//g, "-"));
+          if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10);
+          }
+        }
+      }
+      return null;
+    }
+
+    function scanImageForQR(canvas) {
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" });
+    }
+
+    function clearOverlay() {
+      if (!overlay) return;
+      const ctx = overlay.getContext("2d");
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    function drawOverlay(bounds) {
+      if (!overlay || !bounds) return;
+      const ctx = overlay.getContext("2d");
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      ctx.strokeStyle = "#00ff66";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(bounds.topLeft.x, bounds.topLeft.y);
+      ctx.lineTo(bounds.topRight.x, bounds.topRight.y);
+      ctx.lineTo(bounds.bottomRight.x, bounds.bottomRight.y);
+      ctx.lineTo(bounds.bottomLeft.x, bounds.bottomLeft.y);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
     async function aimAssist() {
-      if (scanning || ocrBusy || video.videoWidth === 0) {
+      if (scanning || scanBusy || video.videoWidth === 0) {
         requestAnimationFrame(aimAssist);
         return;
       }
 
-      ocrBusy = true;
+      scanBusy = true;
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-
       const cropW = vw * 0.7;
-      const cropH = vh * 0.3;
-
+      const cropH = vh * 0.4;
       const x = (vw - cropW) / 2;
       const y = (vh - cropH) / 2;
 
       canvas.width = cropW;
       canvas.height = cropH;
-
       ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
 
-      const image = canvas.toDataURL("image/png");
+      const qr = scanImageForQR(canvas);
+      const hasQR = Boolean(qr && qr.data);
 
-      const result = await Tesseract.recognize(image, "eng", {
-        tessedit_pageseg_mode: 6
-      });
+      if (hasQR && qr.location) {
+        drawOverlay(qr.location);
+      } else {
+        clearOverlay();
+      }
 
-      const text = result.data.text;
-      const confidence = result.data.confidence;
-
-      const hasNumbers = /\d/.test(text);
-      const hasUsefulWords = /(exp|best|use|milk|date|sell)/i.test(text);
-      const textAmount = text.trim().length;
-
-      let score =
-        confidence +
-        (hasNumbers ? 20 : 0) +
-        (hasUsefulWords ? 20 : 0) +
-        (textAmount > 10 ? 10 : 0);
-
-      if (score > 75) aimScore = Math.min(100, aimScore + 20);
-      else if (score > 55) aimScore = Math.min(100, aimScore + 8);
-      else aimScore = Math.max(0, aimScore - 15);
+      if (hasQR) aimScore = Math.min(100, aimScore + 25);
+      else aimScore = Math.max(0, aimScore - 20);
 
       if (aimScore > 80) stableTime++;
       else stableTime = 0;
@@ -93,11 +145,10 @@
         frame.style.borderColor = "#00ff66";
         frame.style.boxShadow = "0 0 30px rgba(0,255,100,0.9)";
 
-        if (stableTime > 3 && !autoCaptured) {
+        if (stableTime > 2 && !autoCaptured) {
           autoCaptured = true;
           capture();
         }
-
       } else if (aimScore > 50) {
         frame.style.borderColor = "#ffcc00";
         frame.style.boxShadow = "0 0 20px rgba(255,200,0,0.5)";
@@ -106,92 +157,54 @@
         frame.style.boxShadow = "0 0 15px rgba(255,0,0,0.4)";
       }
 
-      ocrBusy = false;
-
-      setTimeout(() => requestAnimationFrame(aimAssist), 300);
+      scanBusy = false;
+      setTimeout(() => requestAnimationFrame(aimAssist), 150);
     }
 
     aimAssist();
 
     function capture() {
       if (video.videoWidth === 0) return;
-
       scanning = true;
+      clearOverlay();
 
       const canvas = document.getElementById("canvas");
       const ctx = canvas.getContext("2d");
 
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-
       const cropW = vw * 0.7;
-      const cropH = vh * 0.3;
-
+      const cropH = vh * 0.4;
       const x = (vw - cropW) / 2;
       const y = (vh - cropH) / 2;
 
       canvas.width = cropW;
       canvas.height = cropH;
-
-      ctx.filter = "grayscale(1) contrast(250%) brightness(150%)";
-
       ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
 
-      ctx.filter = "none";
+      const qr = scanImageForQR(canvas);
+      let output = "";
 
-      const image = canvas.toDataURL("image/png");
-//scan for text
-      Tesseract.recognize(image, "eng", {
-        tessedit_pageseg_mode: 6
-      }).then(({ data }) => {
-        
-        const confidence = data.confidence;
+      if (qr && qr.data) {
+        const payload = qr.data.trim();
+        const expiry = extractExpiryDate(payload);
+        output += "QR CODE DETECTED\n\n";
+        output += `Decoded payload:\n${payload}\n\n`;
 
-        let text = data.text
-          .replace(/[^a-zA-Z0-9\/\-\:\s]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .toLowerCase();
-
-        const hasNumbers = /\d/.test(text);
-        const hasUsefulWords = /(exp|best|use|milk|date|sell|store)/i.test(text);
-        const textAmount = text.trim().length;
-
-        let score =
-          confidence +
-          (hasNumbers ? 20 : 0) +
-          (hasUsefulWords ? 20 : 0) +
-          (textAmount > 10 ? 10 : 0);
-
-        let output = "";
-
-        if (score > 70) {
-          output = "LIKELY VALID SCAN\n\n";
-        } else if (score > 45) {
-          output = "UNCERTAIN SCAN\n\n";
+        if (expiry) {
+          output += `Expiration date: ${expiry}`;
         } else {
-          output = "NO TEXT FOUND. TRY TO KEEP YOUR PHONE STABLE\n\n";
+          output += "Expiration date could not be extracted from the QR code.";
         }
+      } else {
+        output = "No QR code found. Please position the QR code in the frame and try again.";
+      }
 
-        output += text;
-
-        if (confidence < 40) {
-          output += "\n\nLow confidence scan";
-        }
-
-        output += `\n\nScore: ${score}/100`;
-
-        document.getElementById("output").innerText = output;
-
-        scanning = false;
-
-        setTimeout(() => {
-          autoCaptured = false;
-        }, 800);
-
-        stableTime = 0;
-        aimScore = 0;
-      });
+      document.getElementById("output").innerText = output;
+      scanning = false;
+      setTimeout(() => { autoCaptured = false; }, 800);
+      stableTime = 0;
+      aimScore = 0;
     }
   </script>
 <!--why is there so much css-->
@@ -223,6 +236,21 @@
       white-space: pre-wrap;
     }
 
+    .video-container {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+    }
+
+    .overlay-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
     .scanner-frame {
       position: absolute;
       top: 35%;
@@ -239,3 +267,4 @@
   <!--finally im free-->
 </body>
 </html>
+

@@ -46,11 +46,11 @@
       if (!text) return null;
       const normalized = text.replace(/[\.\,\s]+/g, " ").toUpperCase();
       const patterns = [
-        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*([0-9]{4}[\/-][0-9]{2}[\/-][0-9]{2})/i,
-        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*([0-9]{2}[\/-][0-9]{2}[\/-][0-9]{4})/i,
-        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:\s]*(\d{8})/i,
-        /([0-9]{4}[\/-][0-9]{2}[\/-][0-9]{2})/,
-        /([0-9]{2}[\/-][0-9]{2}[\/-][0-9]{4})/,
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:=\s]*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i,
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:=\s]*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+        /(?:EXP|EXPIRY|USE BY|USE-BY|BEST BEFORE|BEST-BEFORE|BB|BY)[:=\s]*(\d{8})/i,
+        /([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/,
+        /([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/,
         /(\d{8})/
       ];
 
@@ -72,6 +72,27 @@
           }
         }
       }
+
+      try {
+        const url = new URL(text);
+        const params = ["exp", "expiry", "use_by", "use-by", "best_before", "best-before", "bb", "by", "date"];
+        for (const key of params) {
+          const value = url.searchParams.get(key);
+          if (value) {
+            const parsed = extractExpiryDate(value);
+            if (parsed) return parsed;
+          }
+        }
+
+        const pathMatch = url.pathname.match(/(?:exp|expiry|use-by|best-before|bb|by|date)[\/=]([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2}|[0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4}|\d{8})/i);
+        if (pathMatch && pathMatch[1]) {
+          const parsed = extractExpiryDate(pathMatch[1]);
+          if (parsed) return parsed;
+        }
+      } catch (error) {
+        // ignore invalid URLs
+      }
+
       return null;
     }
 
@@ -267,4 +288,3 @@
   <!--finally im free-->
 </body>
 </html>
-

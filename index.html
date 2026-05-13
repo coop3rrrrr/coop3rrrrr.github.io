@@ -106,6 +106,32 @@
       return jsQR(imageData.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" });
     }
 
+    function playTone(frequency, duration, volume = 0.5, type = "sine") {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      oscillator.type = type;
+      oscillator.frequency.value = frequency;
+      gain.gain.value = volume;
+      oscillator.connect(gain);
+      gain.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration / 1000);
+      oscillator.onended = () => {
+        if (audioCtx.state !== "closed") {
+          audioCtx.close();
+        }
+      };
+    }
+
+    function playExpiredTone() {
+      playTone(120, 500, 0.9, "square");
+    }
+
+    function playValidTone() {
+      playTone(1200, 150, 0.4, "sine");
+    }
+
     function clearOverlay() {
       if (!overlay) return;
       const ctx = overlay.getContext("2d");
@@ -218,6 +244,16 @@
 
         if (expiry) {
           output += `Expiration date: ${expiry}`;
+          const today = new Date();
+          const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+          const expiryDate = new Date(expiry);
+          if (expiryDate < now) {
+            output += "\nSTATUS: EXPIRED";
+            playExpiredTone();
+          } else {
+            output += "\nSTATUS: VALID";
+            playValidTone();
+          }
         } else {
           output += "Expiration date could not be extracted from the QR code.";
         }

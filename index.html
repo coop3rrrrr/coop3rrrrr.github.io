@@ -74,7 +74,11 @@
       }
 
       try {
-        const url = new URL(text);
+        let urlText = text;
+        if (!/^https?:\/\//i.test(urlText)) {
+          urlText = `https://${urlText}`;
+        }
+        const url = new URL(urlText);
         const params = ["exp", "expiry", "use_by", "use-by", "best_before", "best-before", "bb", "by", "date"];
         for (const key of params) {
           const value = url.searchParams.get(key);

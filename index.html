@@ -128,9 +128,37 @@
       playTone(120, 500, 0.9, "square");
     }
 
-    function playValidTone() {
-      playTone(1200, 150, 0.4, "sine");
+function playValidTone() {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  const notes = [
+    { freq: 523.25, time: 0 },    // C5
+    { freq: 659.25, time: 120 },  // E5
+    { freq: 783.99, time: 240 }   // G5
+  ];
+
+  notes.forEach(note => {
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.value = note.freq;
+
+    gain.gain.value = 0.15;
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.start(audioCtx.currentTime + note.time / 1000);
+    oscillator.stop(audioCtx.currentTime + (note.time + 140) / 1000);
+  });
+
+  setTimeout(() => {
+    if (audioCtx.state !== "closed") {
+      audioCtx.close();
     }
+  }, 1000);
+}
 
     function clearOverlay() {
       if (!overlay) return;

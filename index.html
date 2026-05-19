@@ -6,7 +6,7 @@
 </head>
 
 <body>
-  <h1>CMS Milk Expiration Scanner</h1>
+  <h1>AI Milk Expiration Scanner</h1>
 
   <div class="video-container">
     <video id="video" autoplay playsinline></video>
@@ -33,13 +33,29 @@
     let autoCaptured = false;
     let scanBusy = false;
 
+    function handleCameraStream(stream) {
+      video.srcObject = stream;
+      video.muted = true;
+      video.play().catch(() => {});
+    }
+
+    function showCameraError(error) {
+      document.getElementById("output").innerText = `Camera error: ${error.message || error}`;
+    }
+
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: "environment" }
     })
-    .then(stream => video.srcObject = stream)
-    .catch(() => {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => video.srcObject = stream);
+    .then(handleCameraStream)
+    .catch(error => {
+      return navigator.mediaDevices.getUserMedia({ video: true })
+        .then(handleCameraStream)
+        .catch(showCameraError);
+    });
+
+    video.addEventListener("loadedmetadata", () => {
+      overlay.width = video.videoWidth;
+      overlay.height = video.videoHeight;
     });
 
     function extractExpiryDate(text) {
@@ -128,40 +144,9 @@
       playTone(120, 500, 0.9, "square");
     }
 
-function playValidTone() {
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-  const notes = [
-    { freq: 523.25, time: 0 },     // C5
-    { freq: 659.25, time: 120 },   // E5
-    { freq: 783.99, time: 240 }    // G5 (last note)
-  ];
-
-  notes.forEach((note, index) => {
-    const oscillator = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-
-    oscillator.type = "sine";
-    oscillator.frequency.value = note.freq;
-
-    gain.gain.value = 0.15;
-
-    oscillator.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    const isLast = index === notes.length - 1;
-    const duration = isLast ? 600 : 140; // 👈 last note holds longer
-
-    oscillator.start(audioCtx.currentTime + note.time / 1000);
-    oscillator.stop(audioCtx.currentTime + (note.time + duration) / 1000);
-  });
-
-  setTimeout(() => {
-    if (audioCtx.state !== "closed") {
-      audioCtx.close();
+    function playValidTone() {
+      playTone(1200, 150, 0.4, "sine");
     }
-  }, 1200);
-}
 
     function clearOverlay() {
       if (!overlay) return;
@@ -345,10 +330,10 @@ function playValidTone() {
 
     .scanner-frame {
       position: absolute;
-      top: 35%;
+      top: 15%;
       left: 15%;
       width: 70%;
-      height: 30%;
+      height: 70%;
       border: 3px dashed rgba(255, 0, 0, 0.9);
       border-radius: 12px;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
@@ -359,3 +344,4 @@ function playValidTone() {
   <!--finally im free-->
 </body>
 </html>
+

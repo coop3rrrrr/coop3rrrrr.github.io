@@ -184,14 +184,13 @@
 
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      const cropW = vw * 0.7;
-      const cropH = vh * 0.7;
-      const x = (vw - cropW) / 2;
-      const y = (vh - cropH) / 2;
+      const cropSize = Math.min(vw, vh) * 0.7;
+      const x = (vw - cropSize) / 2;
+      const y = (vh - cropSize) / 2;
 
-      canvas.width = cropW;
-      canvas.height = cropH;
-      ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
+      canvas.width = cropSize;
+      canvas.height = cropSize;
+      ctx.drawImage(video, x, y, cropSize, cropSize, 0, 0, cropSize, cropSize);
 
       const qr = scanImageForQR(canvas);
       const hasQR = Boolean(qr && qr.data);
@@ -240,14 +239,13 @@
 
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      const cropW = vw * 0.7;
-      const cropH = vh * 0.7;
-      const x = (vw - cropW) / 2;
-      const y = (vh - cropH) / 2;
+      const cropSize = Math.min(vw, vh) * 0.7;
+      const x = (vw - cropSize) / 2;
+      const y = (vh - cropSize) / 2;
 
-      canvas.width = cropW;
-      canvas.height = cropH;
-      ctx.drawImage(video, x, y, cropW, cropH, 0, 0, cropW, cropH);
+      canvas.width = cropSize;
+      canvas.height = cropSize;
+      ctx.drawImage(video, x, y, cropSize, cropSize, 0, 0, cropSize, cropSize);
 
       const qr = scanImageForQR(canvas);
       let output = "";
@@ -294,8 +292,9 @@
 
     video {
       width: 100%;
-      max-width: 400px;
+      height: 100%;
       border-radius: 12px;
+      object-fit: cover;
     }
 
     button {
@@ -316,7 +315,10 @@
     .video-container {
       position: relative;
       display: inline-block;
-      max-width: 100%;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 1 / 1;
+      overflow: hidden;
     }
 
     .overlay-canvas {

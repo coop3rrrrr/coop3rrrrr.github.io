@@ -145,7 +145,37 @@
     }
 
     function playValidTone() {
-      playTone(1200, 150, 0.4, "sine");
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+      const duration = 200;
+      const gap = 80;
+
+      let startTime = audioCtx.currentTime;
+      notes.forEach((frequency, index) => {
+        const oscillator = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        oscillator.type = "triangle";
+        oscillator.frequency.value = frequency;
+        gain.gain.value = 0.35;
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(0.35, startTime + 0.01);
+        gain.gain.setValueAtTime(0.35, startTime + duration / 1000 - 0.02);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration / 1000);
+
+        oscillator.connect(gain);
+        gain.connect(audioCtx.destination);
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration / 1000);
+
+        startTime += (duration + gap) / 1000;
+      });
+
+      const totalTime = startTime + 0.1;
+      setTimeout(() => {
+        if (audioCtx.state !== "closed") {
+          audioCtx.close();
+        }
+      }, (totalTime - audioCtx.currentTime) * 1000);
     }
 
     function clearOverlay() {
